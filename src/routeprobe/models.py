@@ -134,12 +134,14 @@ class Result:
     response: Response | None = None
     message: str = ""
     detail: str = ""  # traceback or long explanation
+    check: str = ""  # generated check that produced the result: server_error, slow...
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "status": self.status,
             "kind": self.kind,
+            "check": self.check,
             "route": self.route.to_dict() if self.route else None,
             "request": self.request.to_dict() if self.request else None,
             "response": self.response.to_dict() if self.response else None,

@@ -63,7 +63,7 @@ Useful options of `run`:
 | `--only PATTERN` | keep routes whose path or view matches (`/api/*`, `ItemViewSet`) |
 | `--exclude PATTERN` | skip routes (repeatable) |
 | `--no-auto` / `--no-custom` | run only your tests / only the generated probes |
-| `--checks server_error,invalid_body` | choose the generated checks |
+| `--checks server_error,slow` | choose the generated checks |
 | `--report report.json` | write a JSON report (for CI) |
 | `--no-test-db` | Django: use the configured database instead of a temporary one |
 | `--include-admin` | Django: also probe `/admin/` |
@@ -76,10 +76,11 @@ For every route and every method its view declares:
 | Check | Sends | Fails when |
 |---|---|---|
 | `server_error` | a request filled with sample values | the response is 5xx or the view raises |
+| `slow` | nothing more: it times the `server_error` request | the response takes longer than `--slow-ms` (warning, not a failure) |
 | `invalid_body` | `{}` to a method whose body has required fields | the view crashes (5xx) or accepts it (2xx) |
 | `method_not_allowed` | a method the route does not declare | the view crashes or accepts it |
 
-Responses slower than `--slow-ms` (1000 by default) are reported as warnings.
+`--slow-ms` is 1000 by default. Each result carries the name of its check (`check` in the JSON report, a label in the panel).
 
 Where the methods and bodies come from:
 
@@ -185,7 +186,7 @@ tests = ["tests/routeprobe_tests.py"]
 exclude = ["/admin/*", "POST /auth/logout"]
 read_only = false
 test_db = true
-checks = ["server_error", "invalid_body", "method_not_allowed"]
+checks = ["server_error", "slow", "invalid_body", "method_not_allowed"]
 slow_ms = 500
 ```
 

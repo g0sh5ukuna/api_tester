@@ -56,7 +56,8 @@ class ConsoleReporter:
             self.write()
             self.write(self._paint("Failures", "1"))
             for result in failures:
-                self.write(f"\n  {self._paint(result.name, '1')}")
+                check = f"  ({result.check})" if result.check else ""
+                self.write(f"\n  {self._paint(result.name, '1')}{check}")
                 if result.request:
                     self.write(f"    request : {result.request.method} {result.request.path}"
                                + (f"  query={result.request.query}" if result.request.query else "")

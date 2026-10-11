@@ -61,7 +61,7 @@ Options utiles de `run` :
 | `--only PATTERN` | conserve les routes dont le chemin ou la vue correspond (`/api/*`, `ItemViewSet`) |
 | `--exclude PATTERN` | skip routes (répétable) |
 | `--no-auto` / `--no-custom` | exécute uniquement vos tests / uniquement les probes générés |
-| `--checks server_error,invalid_body` | choisis les vérifications générées |
+| `--checks server_error,slow` | choisis les vérifications générées |
 | `--report report.json` | écrit un rapport JSON (pour CI) |
 | `--no-test-db` | Django : utilise la base de données configurée au lieu d'une temporaire |
 | `--include-admin` | Django : aussi tester `/admin/` |
@@ -74,10 +74,11 @@ Pour chaque route et chaque méthode que sa vue déclare :
 | Vérifie | Envoie | Échec quand |
 |---|---|---|
 | `server_error` | une requête remplie avec des valeurs d'échantillon | la réponse est 5xx ou la vue lève |
+| `slow` | rien de plus : il chronomètre la requête de `server_error` | la réponse dépasse `--slow-ms` (avertissement, pas un échec) |
 | `invalid_body` | `{}` à une méthode dont le corps a des champs requis | la vue plante (5xx) ou l'accepte (2xx) |
 | `method_not_allowed` | une méthode que la route ne déclare pas | la vue plante ou l'accepte |
 
-Les réponses plus lentes que `--slow-ms` (1000 par défaut) sont signalées comme avertissements.
+`--slow-ms` vaut 1000 par défaut. Chaque résultat porte le nom de sa vérification (`check` dans le rapport JSON, une étiquette dans le panneau).
 
 D'où proviennent les méthodes et les corps :
 
@@ -183,7 +184,7 @@ tests = ["tests/routeprobe_tests.py"]
 exclude = ["/admin/*", "POST /auth/logout"]
 read_only = false
 test_db = true
-checks = ["server_error", "invalid_body", "method_not_allowed"]
+checks = ["server_error", "slow", "invalid_body", "method_not_allowed"]
 slow_ms = 500
 ```
 

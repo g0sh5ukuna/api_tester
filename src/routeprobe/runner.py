@@ -13,7 +13,7 @@ from .models import ERROR, FAIL, METHOD_ORDER, PASS, SKIP, WARN, WRITE_METHODS, 
 from .registry import CustomTest, Registry, Target
 from .schema import has_required_fields, sample, sample_param
 
-ALL_CHECKS = ("server_error", "invalid_body", "method_not_allowed")
+ALL_CHECKS = ("server_error", "slow", "invalid_body", "method_not_allowed")
 
 
 class Client:
@@ -175,7 +175,7 @@ class Runner:
                 except Exception as exc:
                     yield Result(label, ERROR, "auto", route, message=f"@rp.data failed: {exc}", detail=traceback.format_exc())
                     continue
-                if "server_error" in checks:
+                if "server_error" in checks or "slow" in checks:
                     yield self._check_server_error(label, route, request)
                 if "invalid_body" in checks and method in route.body_schemas and has_required_fields(
                     route.body_schemas[method], route.components
@@ -188,22 +188,25 @@ class Runner:
                     yield result
 
     def _check_server_error(self, label: str, route: Route, request: Request) -> Result:
+        """One request per method; it feeds both the server_error and the slow checks."""
+        checks = self.options.checks
         response = self.adapter.send(request)
-        if response.status >= 500:
-            return Result(label, FAIL, "auto", route, request, response, _server_error_message(response), response.error or "")
-        if response.elapsed_ms > self.options.slow_ms:
-            return Result(label, WARN, "auto", route, request, response, f"slow: {response.elapsed_ms:.0f} ms")
-        return Result(label, PASS, "auto", route, request, response)
+        if "server_error" in checks and response.status >= 500:
+            return Result(label, FAIL, "auto", route, request, response, _server_error_message(response), response.error or "", "server_error")
+        if "slow" in checks and response.elapsed_ms > self.options.slow_ms:
+            message = f"slow: {response.elapsed_ms:.0f} ms (limit {self.options.slow_ms:.0f} ms)"
+            return Result(label, WARN, "auto", route, request, response, message, check="slow")
+        return Result(label, PASS, "auto", route, request, response, check="server_error" if "server_error" in checks else "slow")
 
     def _check_invalid_body(self, route: Route, valid: Request) -> Result:
         request = Request(valid.method, valid.path, valid.query, valid.headers, {}, None)
         response = self.adapter.send(request)
         label = f"{valid.method} {route.path} · empty body"
         if response.status >= 500:
-            return Result(label, FAIL, "auto", route, request, response, "crashes on an invalid body: " + _server_error_message(response), response.error or "")
+            return Result(label, FAIL, "auto", route, request, response, "crashes on an invalid body: " + _server_error_message(response), response.error or "", "invalid_body")
         if response.status < 400:
-            return Result(label, FAIL, "auto", route, request, response, f"accepted an empty body ({response.status}) although fields are required")
-        return Result(label, PASS, "auto", route, request, response)
+            return Result(label, FAIL, "auto", route, request, response, f"accepted an empty body ({response.status}) although fields are required", check="invalid_body")
+        return Result(label, PASS, "auto", route, request, response, check="invalid_body")
 
     def _check_method_not_allowed(self, route: Route) -> Result | None:
         if not route.methods_known:
@@ -216,10 +219,10 @@ class Runner:
         response = self.adapter.send(request)
         label = f"{method} {route.path} · undeclared method"
         if response.status >= 500:
-            return Result(label, FAIL, "auto", route, request, response, _server_error_message(response), response.error or "")
+            return Result(label, FAIL, "auto", route, request, response, _server_error_message(response), response.error or "", "method_not_allowed")
         if response.status < 400:
-            return Result(label, FAIL, "auto", route, request, response, f"{method} is not declared but returned {response.status}")
-        return Result(label, PASS, "auto", route, request, response)
+            return Result(label, FAIL, "auto", route, request, response, f"{method} is not declared but returned {response.status}", check="method_not_allowed")
+        return Result(label, PASS, "auto", route, request, response, check="method_not_allowed")
 
     def _run_custom(self, test: CustomTest):
         if test.target is None:

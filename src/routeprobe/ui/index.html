@@ -92,6 +92,7 @@ tr.result { cursor: pointer; } tr.result:hover { background: var(--bg); }
 .chip { font: 600 10.5px var(--mono); text-transform: uppercase; padding: 2px 6px; border-radius: 4px; color: #fff; }
 .chip.pass { background: var(--pass); } .chip.fail { background: var(--fail); } .chip.error { background: var(--error); }
 .chip.warn { background: var(--warn); } .chip.skip { background: var(--skip); }
+.check { margin-left: 8px; color: var(--muted); font-size: 11px; }
 .chip.custom { background: transparent; color: var(--accent); border: 1px solid var(--accent); margin-left: 6px; }
 tr.detail td { background: var(--bg); padding: 0; }
 tr.detail .actions { padding: 8px 14px; }
@@ -283,10 +284,12 @@ function renderResults(data) {
   const marks = new Map();
   const table = el("table");
   for (const r of data.results) {
-    if (r.kind === "auto" && r.route && r.request && !r.name.includes("·")) marks.set(`${r.request.method} ${r.route.path}`, r.status);
+    // The dot on a method shows the request sent with that method (server_error or slow check).
+    if (["server_error", "slow"].includes(r.check) && r.route && r.request) marks.set(`${r.request.method} ${r.route.path}`, r.status);
     const row = el("tr", { class: "result" },
       el("td", {}, el("span", { class: `chip ${r.status}` }, r.status)),
-      el("td", { class: "name" }, r.name, r.kind === "custom" ? el("span", { class: "chip custom" }, "custom") : null),
+      el("td", { class: "name" }, r.name, r.kind === "custom" ? el("span", { class: "chip custom" }, "custom") : null,
+        r.check ? el("span", { class: "check" }, r.check) : null),
       el("td", { class: "num" }, r.response ? r.response.status : ""),
       el("td", { class: "num" }, r.response ? `${r.response.elapsed_ms} ms` : ""),
       el("td", { class: "msg" }, r.message || ""));

@@ -57,7 +57,7 @@ def resolve_ref(ref: str, components: dict[str, Any]) -> dict[str, Any]:
 def sample(schema: dict[str, Any], components: dict[str, Any] | None = None, _depth: int = 0) -> Any:
     """Return a value that satisfies the main constraints of `schema`."""
     components = components or {}
-    if _depth > 8 or not isinstance(schema, dict):
+    if _depth > 15 or not isinstance(schema, dict):
         return None
     if "$ref" in schema:
         return sample(resolve_ref(schema["$ref"], components), components, _depth + 1)
