@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>routeprobe</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --line: #e2e5ea; --text: #1d2330; --muted: #677085;
+  --accent: #2f5bd3; --pass: #1f8a4c; --fail: #c62f3b; --error: #9b3ec4; --warn: #b7791f; --skip: #8a93a6;
+  --get: #2f7fd3; --post: #1f8a4c; --put: #b7791f; --patch: #7a5bd3; --delete: #c62f3b;
+  --code-bg: #f1f3f6;
+  --mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12151b; --panel: #1a1e26; --line: #2a303b; --text: #e3e7ee; --muted: #8b93a5;
+    --accent: #6d8ff0; --code-bg: #141820;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 var(--sans); }
+header {
+  position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line);
+}
+header h1 { margin: 0 8px 0 0; font: 600 15px var(--mono); }
+header .app { color: var(--muted); font-family: var(--mono); font-size: 12px; margin-right: auto; }
+input, select, textarea, button { font: inherit; color: inherit; }
+input[type=search], input[type=text], select, textarea {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px;
+}
+textarea { width: 100%; font: 12.5px/1.5 var(--mono); resize: vertical; min-height: 90px; }
+button {
+  border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 6px 12px; cursor: pointer;
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button:disabled { opacity: .55; cursor: progress; }
+label.check { display: inline-flex; gap: 5px; align-items: center; color: var(--muted); font-size: 13px; }
+main {
+  display: grid; grid-template-columns: minmax(260px, 340px) 1fr; gap: 16px; padding: 16px; align-items: start;
+}
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.card > h2 {
+  margin: 0; padding: 10px 14px; font-size: 12px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between;
+}
+#routes { position: sticky; top: 66px; max-height: calc(100vh - 82px); overflow: auto; }
+.route { padding: 8px 14px; border-bottom: 1px solid var(--line); }
+.route:last-child { border-bottom: 0; }
+.route .path { font: 12.5px var(--mono); word-break: break-all; }
+.route .view { color: var(--muted); font: 11px var(--mono); word-break: break-all; margin-top: 2px; }
+.route .methods { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.method {
+  font: 600 10.5px var(--mono); padding: 2px 6px; border-radius: 4px; border: 1px solid currentColor;
+  background: transparent; cursor: pointer; position: relative;
+}
+.method[data-m=GET] { color: var(--get); } .method[data-m=POST] { color: var(--post); }
+.method[data-m=PUT] { color: var(--put); } .method[data-m=PATCH] { color: var(--patch); }
+.method[data-m=DELETE] { color: var(--delete); }
+.method[data-status]::after {
+  content: ""; position: absolute; top: -3px; right: -3px; width: 7px; height: 7px; border-radius: 50%;
+}
+.method[data-status=pass]::after { background: var(--pass); } .method[data-status=fail]::after { background: var(--fail); }
+.method[data-status=error]::after { background: var(--error); } .method[data-status=warn]::after { background: var(--warn); }
+.stack { display: grid; gap: 16px; min-width: 0; }
+.bar { display: flex; gap: 8px; padding: 12px 14px; flex-wrap: wrap; }
+.bar #path { flex: 1 1 260px; font-family: var(--mono); }
+.tabs { display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--muted); }
+.tabs button[aria-selected=true] { color: var(--text); border-bottom-color: var(--accent); }
+.tabpanel { padding: 12px 14px; }
+.tabpanel[hidden] { display: none; }
+.hint { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+.response-meta { display: flex; gap: 14px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 12.5px; }
+.code { font: 600 13px var(--mono); }
+.s2 { color: var(--pass); } .s3 { color: var(--accent); } .s4 { color: var(--warn); } .s5 { color: var(--fail); }
+pre {
+  margin: 0; padding: 12px 14px; font: 12px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word;
+  max-height: 420px; overflow: auto; background: var(--code-bg);
+}
+pre.trace { color: var(--fail); }
+.empty { color: var(--muted); padding: 18px 14px; font-size: 13px; }
+.summary { display: flex; gap: 12px; font: 12px var(--mono); text-transform: none; letter-spacing: 0; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+td { padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+td.name { font-family: var(--mono); font-size: 12.5px; word-break: break-all; }
+td.num { font-family: var(--mono); font-size: 12px; text-align: right; white-space: nowrap; color: var(--muted); }
+td.msg { color: var(--muted); font-size: 12.5px; }
+tr.result { cursor: pointer; } tr.result:hover { background: var(--bg); }
+.chip { font: 600 10.5px var(--mono); text-transform: uppercase; padding: 2px 6px; border-radius: 4px; color: #fff; }
+.chip.pass { background: var(--pass); } .chip.fail { background: var(--fail); } .chip.error { background: var(--error); }
+.chip.warn { background: var(--warn); } .chip.skip { background: var(--skip); }
+.chip.custom { background: transparent; color: var(--accent); border: 1px solid var(--accent); margin-left: 6px; }
+tr.detail td { background: var(--bg); padding: 0; }
+tr.detail .actions { padding: 8px 14px; }
+.banner { margin: 16px 16px 0; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--fail); color: var(--fail); background: var(--panel); font-family: var(--mono); font-size: 12.5px; }
+.banner[hidden] { display: none; }
+@media (max-width: 860px) {
+  main { grid-template-columns: 1fr; }
+  #routes { position: static; max-height: 360px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>routeprobe</h1>
+  <span class="app" id="app">loading…</span>
+  <input type="search" id="filter" placeholder="Filter: /items, *users*, ViewSet" aria-label="Filter routes">
+  <label class="check"><input type="checkbox" id="auto" checked> generated</label>
+  <label class="check"><input type="checkbox" id="custom" checked> custom tests</label>
+  <button class="primary" id="run">Run probes</button>
+</header>
+<div class="banner" id="banner" hidden></div>
+<main>
+  <section class="card" id="routes" aria-label="Routes">
+    <h2><span>Routes</span><span id="routeCount"></span></h2>
+    <div id="routeList"><p class="empty">Loading routes…</p></div>
+  </section>
+  <div class="stack">
+    <section class="card" aria-label="Request">
+      <h2><span>Request</span></h2>
+      <div class="bar">
+        <select id="method" aria-label="Method">
+          <option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option><option>HEAD</option><option>OPTIONS</option>
+        </select>
+        <input type="text" id="path" value="/" aria-label="Path" spellcheck="false">
+        <button class="primary" id="send">Send</button>
+      </div>
+      <div class="tabs" role="tablist">
+        <button role="tab" aria-selected="true" data-tab="body">Body</button>
+        <button role="tab" aria-selected="false" data-tab="query">Query</button>
+        <button role="tab" aria-selected="false" data-tab="headers">Headers</button>
+      </div>
+      <div class="tabpanel" data-panel="body">
+        <select id="bodyType" aria-label="Body type"><option value="json">JSON</option><option value="form">Form (JSON object)</option><option value="none">None</option></select>
+        <textarea id="body" spellcheck="false" style="margin-top:8px" aria-label="Body"></textarea>
+        <p class="hint">Pre-filled from the route schema (OpenAPI, DRF serializer) or your <code>@rp.data</code>.</p>
+      </div>
+      <div class="tabpanel" data-panel="query" hidden><textarea id="query" spellcheck="false" aria-label="Query">{}</textarea></div>
+      <div class="tabpanel" data-panel="headers" hidden>
+        <textarea id="headers" spellcheck="false" aria-label="Headers">{}</textarea>
+        <p class="hint">Headers set by <code>@rp.setup</code> (auth tokens…) are added automatically.</p>
+      </div>
+    </section>
+    <section class="card" aria-label="Response">
+      <h2><span>Response</span></h2>
+      <div id="response"><p class="empty">Pick a method on a route, then Send.</p></div>
+    </section>
+    <section class="card" aria-label="Results">
+      <h2><span>Results</span><span class="summary" id="summary"></span></h2>
+      <div id="results"><p class="empty">Run the probes to test every route.</p></div>
+    </section>
+  </div>
+</main>
+<script nonce="__NONCE__">
+"use strict";
+const $ = (id) => document.getElementById(id);
+let routes = [];
+
+function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(attrs)) {
+    if (key === "class") node.className = value;
+    else if (key === "data") Object.entries(value).forEach(([k, v]) => (node.dataset[k] = v));
+    else node.setAttribute(key, value);
+  }
+  for (const child of children.flat()) {
+    if (child !== null && child !== undefined) node.append(child instanceof Node ? child : String(child));
+  }
+  return node;
+}
+
+async function api(path, body) {
+  const options = body === undefined ? {} : {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  };
+  const res = await fetch(path, options);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+function banner(message) {
+  $("banner").hidden = !message;
+  $("banner").textContent = message || "";
+}
+
+function pretty(value) {
+  return value === null || value === undefined ? "" : JSON.stringify(value, null, 2);
+}
+
+function prettyBody(text) {
+  try { return JSON.stringify(JSON.parse(text), null, 2); } catch { return text; }
+}
+
+function matches(route, filter) {
+  if (!filter) return true;
+  const f = filter.toLowerCase();
+  if (f.includes("*")) {
+    const re = new RegExp("^" + f.split("*").map((s) => s.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*") + "$");
+    return re.test(route.path.toLowerCase());
+  }
+  return route.path.toLowerCase().includes(f) || route.view.toLowerCase().includes(f);
+}
+
+function renderRoutes() {
+  const filter = $("filter").value.trim();
+  const shown = routes.filter((r) => matches(r, filter));
+  $("routeCount").textContent = `${shown.length}/${routes.length}`;
+  const list = $("routeList");
+  list.replaceChildren();
+  if (!shown.length) return list.append(el("p", { class: "empty" }, "No route matches."));
+  for (const route of shown) {
+    const methods = route.methods.map((m) =>
+      el("button", { class: "method", data: { m, key: `${m} ${route.path}` }, title: route.handlers[m] || route.view }, m));
+    methods.forEach((b) => b.addEventListener("click", () => openRequest(route.samples[b.dataset.m])));
+    list.append(el("div", { class: "route" },
+      el("div", { class: "path" }, route.path),
+      el("div", { class: "view" }, route.view + (route.methods_known ? "" : "  · methods not declared")),
+      el("div", { class: "methods" }, methods)));
+  }
+}
+
+function openRequest(sample) {
+  if (!sample) return;
+  if (sample.error) banner(`@rp.data failed for ${sample.method} ${sample.path}: ${sample.error}`);
+  $("method").value = sample.method;
+  $("path").value = sample.path;
+  $("query").value = pretty(sample.query || {});
+  $("headers").value = pretty(sample.headers || {});
+  const form = sample.data !== null && sample.data !== undefined;
+  const hasJson = sample.json !== null && sample.json !== undefined;
+  $("bodyType").value = form ? "form" : hasJson ? "json" : "none";
+  $("body").value = form ? pretty(sample.data) : hasJson ? pretty(sample.json) : "";
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function parseField(id, label) {
+  const text = $(id).value.trim();
+  if (!text) return {};
+  try { return JSON.parse(text); } catch (e) { throw new Error(`${label} is not valid JSON: ${e.message}`); }
+}
+
+function renderResponse(target, response) {
+  target.replaceChildren();
+  const cls = `code s${String(response.status)[0]}`;
+  target.append(el("div", { class: "response-meta" },
+    el("span", { class: cls }, response.status), el("span", {}, `${response.elapsed_ms} ms`),
+    el("span", {}, response.headers["content-type"] || response.headers["Content-Type"] || "")));
+  if (response.error) target.append(el("pre", { class: "trace" }, response.error));
+  if (response.body) target.append(el("pre", {}, prettyBody(response.body)));
+}
+
+async function send() {
+  banner("");
+  $("send").disabled = true;
+  try {
+    const payload = {
+      method: $("method").value,
+      path: $("path").value.trim() || "/",
+      query: parseField("query", "Query"),
+      headers: parseField("headers", "Headers"),
+      bodyType: $("bodyType").value,
+      body: $("bodyType").value === "none" ? "" : $("body").value,
+    };
+    const data = await api("/api/send", payload);
+    renderResponse($("response"), data.response);
+  } catch (e) {
+    banner(e.message);
+  } finally {
+    $("send").disabled = false;
+  }
+}
+
+function renderResults(data) {
+  const summary = $("summary");
+  summary.replaceChildren(...["pass", "fail", "error", "warn", "skip"]
+    .filter((s) => data.summary[s])
+    .map((s) => el("span", { class: `s-${s}` }, el("span", { class: `chip ${s}` }, s), " ", data.summary[s])),
+    el("span", {}, `${data.seconds}s`));
+  const marks = new Map();
+  const table = el("table");
+  for (const r of data.results) {
+    if (r.kind === "auto" && r.route && r.request && !r.name.includes("·")) marks.set(`${r.request.method} ${r.route.path}`, r.status);
+    const row = el("tr", { class: "result" },
+      el("td", {}, el("span", { class: `chip ${r.status}` }, r.status)),
+      el("td", { class: "name" }, r.name, r.kind === "custom" ? el("span", { class: "chip custom" }, "custom") : null),
+      el("td", { class: "num" }, r.response ? r.response.status : ""),
+      el("td", { class: "num" }, r.response ? `${r.response.elapsed_ms} ms` : ""),
+      el("td", { class: "msg" }, r.message || ""));
+    const detail = el("tr", { class: "detail", hidden: "" }, el("td", { colspan: "5" }, resultDetail(r)));
+    row.addEventListener("click", () => (detail.hidden = !detail.hidden));
+    table.append(row, detail);
+  }
+  $("results").replaceChildren(data.results.length ? table : el("p", { class: "empty" }, "No probe ran."));
+  document.querySelectorAll(".method").forEach((b) => {
+    const status = marks.get(b.dataset.key);
+    if (status) b.dataset.status = status; else delete b.dataset.status;
+  });
+}
+
+function resultDetail(r) {
+  const box = el("div");
+  if (r.request) {
+    const open = el("button", {}, "Open in request editor");
+    open.addEventListener("click", (event) => { event.stopPropagation(); openRequest(r.request); });
+    box.append(el("div", { class: "actions" }, open));
+    box.append(el("pre", {}, `${r.request.method} ${r.request.path}` +
+      (Object.keys(r.request.query || {}).length ? `\nquery: ${JSON.stringify(r.request.query)}` : "") +
+      (r.request.json !== null && r.request.json !== undefined ? `\n\n${pretty(r.request.json)}` : "")));
+  }
+  if (r.response) {
+    const res = el("div");
+    renderResponse(res, r.response);
+    box.append(res);
+  }
+  if (r.detail && !(r.response && r.response.error === r.detail)) box.append(el("pre", { class: "trace" }, r.detail));
+  return box;
+}
+
+async function run() {
+  banner("");
+  $("run").disabled = true;
+  $("run").textContent = "Running…";
+  try {
+    const data = await api("/api/run", { auto: $("auto").checked, custom: $("custom").checked, only: $("filter").value.trim() || null });
+    if (data.load_error) banner(`Test file error: ${data.load_error}`);
+    renderResults(data);
+  } catch (e) {
+    banner(e.message);
+  } finally {
+    $("run").disabled = false;
+    $("run").textContent = "Run probes";
+  }
+}
+
+document.querySelectorAll(".tabs button").forEach((tab) => tab.addEventListener("click", () => {
+  document.querySelectorAll(".tabs button").forEach((t) => t.setAttribute("aria-selected", String(t === tab)));
+  document.querySelectorAll(".tabpanel").forEach((p) => (p.hidden = p.dataset.panel !== tab.dataset.tab));
+}));
+$("send").addEventListener("click", send);
+$("run").addEventListener("click", run);
+$("filter").addEventListener("input", renderRoutes);
+$("path").addEventListener("keydown", (e) => { if (e.key === "Enter") send(); });
+
+api("/api/routes").then((data) => {
+  routes = data.routes;
+  $("app").textContent = `${data.framework} · ${data.app}` + (data.read_only ? " · read-only" : "");
+  if (data.load_error) banner(`Test file error: ${data.load_error}`);
+  renderRoutes();
+  if (routes.length) openRequest(routes[0].samples[routes[0].methods[0]]);
+}).catch((e) => banner(`Cannot load routes: ${e.message}`));
+</script>
+</body>
+</html>

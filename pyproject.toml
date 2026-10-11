@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "routeprobe"
+version = "0.1.0"
+description = "Discover and test every route of a Django, Flask or FastAPI API in development, from the CLI or a local web panel."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "Josué SOUNON" }]
+keywords = ["api", "testing", "django", "flask", "fastapi", "smoke-test", "dev-tools"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Framework :: Django",
+    "Framework :: FastAPI",
+    "Framework :: Flask",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Testing",
+]
+# The core has no dependencies: it uses the framework installed in the project under test.
+dependencies = []
+
+[project.optional-dependencies]
+# FastAPI's TestClient needs an HTTP client.
+fastapi = ["httpx>=0.28"]
+dev = [
+    "pytest>=9.1",
+    "django>=6.1",
+    "djangorestframework>=3.18",
+    "flask>=3.1",
+    "fastapi>=0.143",
+    "httpx>=0.28",
+]
+
+[project.scripts]
+routeprobe = "routeprobe.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/routeprobe"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
