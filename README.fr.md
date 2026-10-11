@@ -24,16 +24,42 @@ routeprobe · fastapi · main:app · 4 routes
       ZeroDivisionError: float division à virgule par zéro
 ```
 
-## Install
+## Installation
 
-Dans l'environnement virtuel du projet que vous voulez tester :
-
-```bash
-pip install -e /path/to/api_tester        # installation locale
-pip install "routeprobe[fastapi]"         # une fois publié ; l'extra ajoute httpx pour le TestClient de FastAPI
-```
+Installez routeprobe **dans l'environnement virtuel du projet à tester** : il importe votre application, il lui faut donc les mêmes paquets. C'est pour cela que `pipx install` ou `uv tool install` ne conviennent pas.
 
 routeprobe n'a aucune dépendance propre : il utilise le framework déjà installé dans votre projet. Python 3.10+.
+
+### Projet géré avec pip
+
+```bash
+source .venv/bin/activate
+pip install git+https://github.com/g0sh5ukuna/api_tester.git
+routeprobe run
+```
+
+### Projet géré avec uv
+
+Un environnement créé par `uv venv` ne contient pas `pip`. Taper `pip` appelle alors le pip du système, que Debian ou Ubuntu refusent avec `error: externally-managed-environment`. Passez par uv :
+
+```bash
+# Gardé dans le projet : ajouté aux dépendances de dev du pyproject.toml, survit à `uv sync`
+uv add --dev "routeprobe @ git+https://github.com/g0sh5ukuna/api_tester.git"
+uv run routeprobe run
+
+# Essai rapide, sans modifier pyproject.toml : retiré au prochain `uv sync`
+uv pip install git+https://github.com/g0sh5ukuna/api_tester.git
+uv run routeprobe run
+```
+
+### Autres cas
+
+```bash
+pip install -e /path/to/api_tester                                    # clone local, pour travailler sur routeprobe
+pip install "routeprobe[fastapi] @ git+https://github.com/g0sh5ukuna/api_tester.git"   # ajoute httpx si le TestClient de FastAPI le réclame
+```
+
+N'utilisez jamais `--break-system-packages` : il installe dans le Python du système, hors de votre projet.
 
 ## Utilisation
 

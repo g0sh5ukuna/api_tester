@@ -28,14 +28,40 @@ Failures
 
 ## Install
 
-In the virtual environment of the project you want to test:
-
-```bash
-pip install -e /path/to/api_tester        # local install
-pip install "routeprobe[fastapi]"         # once published; the extra adds httpx for FastAPI's TestClient
-```
+Install routeprobe **in the virtual environment of the project you want to test**: it imports your application, so it needs the same packages. For that reason `pipx install` or `uv tool install` do not work.
 
 routeprobe has no dependency of its own: it uses the framework already installed in your project. Python 3.10+.
+
+### Project managed with pip
+
+```bash
+source .venv/bin/activate
+pip install git+https://github.com/g0sh5ukuna/api_tester.git
+routeprobe run
+```
+
+### Project managed with uv
+
+A virtual environment created by `uv venv` contains no `pip`. Typing `pip` then calls the system pip, and Debian or Ubuntu refuse with `error: externally-managed-environment`. Use uv instead:
+
+```bash
+# Kept in the project: added to the dev dependencies of pyproject.toml, survives `uv sync`
+uv add --dev "routeprobe @ git+https://github.com/g0sh5ukuna/api_tester.git"
+uv run routeprobe run
+
+# Quick try, without changing pyproject.toml: removed by the next `uv sync`
+uv pip install git+https://github.com/g0sh5ukuna/api_tester.git
+uv run routeprobe run
+```
+
+### Other cases
+
+```bash
+pip install -e /path/to/api_tester                                    # local clone, for working on routeprobe
+pip install "routeprobe[fastapi] @ git+https://github.com/g0sh5ukuna/api_tester.git"   # adds httpx if FastAPI's TestClient misses it
+```
+
+Never pass `--break-system-packages`: it installs into the system Python, outside your project.
 
 ## Use
 
