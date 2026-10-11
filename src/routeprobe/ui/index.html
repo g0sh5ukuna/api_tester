@@ -7,7 +7,7 @@
 <style>
 :root {
   --bg: #f6f7f9; --panel: #ffffff; --line: #e2e5ea; --text: #1d2330; --muted: #677085;
-  --accent: #2f5bd3; --pass: #1f8a4c; --fail: #c62f3b; --error: #9b3ec4; --warn: #b7791f; --skip: #8a93a6;
+  --accent: #2f5bd3; --pass: #1f8a4c; --fail: #c62f3b; --error: #9b3ec4; --warn: #b7791f; --skip: #8a93a6; --partial: #13808a;
   --get: #2f7fd3; --post: #1f8a4c; --put: #b7791f; --patch: #7a5bd3; --delete: #c62f3b;
   --code-bg: #f1f3f6;
   --mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
@@ -62,6 +62,7 @@ main {
 .method[data-status]::after {
   content: ""; position: absolute; top: -3px; right: -3px; width: 7px; height: 7px; border-radius: 50%;
 }
+.method[data-status=partial]::after { background: var(--partial); }
 .method[data-status=pass]::after { background: var(--pass); } .method[data-status=fail]::after { background: var(--fail); }
 .method[data-status=error]::after { background: var(--error); } .method[data-status=warn]::after { background: var(--warn); }
 .stack { display: grid; gap: 16px; min-width: 0; }
@@ -90,9 +91,12 @@ td.num { font-family: var(--mono); font-size: 12px; text-align: right; white-spa
 td.msg { color: var(--muted); font-size: 12.5px; }
 tr.result { cursor: pointer; } tr.result:hover { background: var(--bg); }
 .chip { font: 600 10.5px var(--mono); text-transform: uppercase; padding: 2px 6px; border-radius: 4px; color: #fff; }
+.chip.partial { background: var(--partial); }
+.hint-line { display: block; margin-top: 3px; color: var(--partial); font-size: 12px; }
+.hint-box { margin: 0; padding: 10px 14px; border-left: 3px solid var(--partial); background: var(--panel); font-size: 13px; }
 .chip.pass { background: var(--pass); } .chip.fail { background: var(--fail); } .chip.error { background: var(--error); }
 .chip.warn { background: var(--warn); } .chip.skip { background: var(--skip); }
-.check { margin-left: 8px; color: var(--muted); font-size: 11px; }
+.check { display: inline-block; margin-left: 8px; color: var(--muted); font-size: 11px; white-space: nowrap; word-break: normal; }
 .chip.custom { background: transparent; color: var(--accent); border: 1px solid var(--accent); margin-left: 6px; }
 tr.detail td { background: var(--bg); padding: 0; }
 tr.detail .actions { padding: 8px 14px; }
@@ -277,10 +281,13 @@ async function send() {
 
 function renderResults(data) {
   const summary = $("summary");
-  summary.replaceChildren(...["pass", "fail", "error", "warn", "skip"]
+  const cover = data.coverage && data.coverage.sent
+    ? el("span", { title: "Generated requests that reached the view logic (2xx/3xx)" }, `coverage ${data.coverage.exercised}/${data.coverage.sent}`)
+    : null;
+  summary.replaceChildren(...["pass", "partial", "fail", "error", "warn", "skip"]
     .filter((s) => data.summary[s])
     .map((s) => el("span", { class: `s-${s}` }, el("span", { class: `chip ${s}` }, s), " ", data.summary[s])),
-    el("span", {}, `${data.seconds}s`));
+    cover, el("span", {}, `${data.seconds}s`));
   const marks = new Map();
   const table = el("table");
   for (const r of data.results) {
@@ -292,7 +299,7 @@ function renderResults(data) {
         r.check ? el("span", { class: "check" }, r.check) : null),
       el("td", { class: "num" }, r.response ? r.response.status : ""),
       el("td", { class: "num" }, r.response ? `${r.response.elapsed_ms} ms` : ""),
-      el("td", { class: "msg" }, r.message || ""));
+      el("td", { class: "msg" }, r.message || "", r.hint ? el("span", { class: "hint-line" }, "↳ " + r.hint) : null));
     const detail = el("tr", { class: "detail", hidden: "" }, el("td", { colspan: "5" }, resultDetail(r)));
     row.addEventListener("click", () => (detail.hidden = !detail.hidden));
     table.append(row, detail);
@@ -319,6 +326,7 @@ function resultDetail(r) {
     renderResponse(res, r.response);
     box.append(res);
   }
+  if (r.hint) box.append(el("p", { class: "hint-box" }, "How to fix: " + r.hint));
   if (r.detail && !(r.response && r.response.error === r.detail)) box.append(el("pre", { class: "trace" }, r.detail));
   return box;
 }

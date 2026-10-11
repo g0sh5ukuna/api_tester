@@ -114,6 +114,24 @@ Where the methods and bodies come from:
 - **Django**: `path()` and `re_path()` patterns, including `include()` and DRF routers. Methods come from class-based views, DRF `ViewSet` actions, `@api_view` and `@require_http_methods`; JSON bodies come from the DRF `serializer_class`. A plain function view without a method decorator is assumed to handle GET.
 - **Flask**: rules, converters (`<int:id>`, `<uuid:...>`, `<any(a,b):...>`) and `MethodView`. Flask has no body schema: give real bodies with `@rp.data`.
 
+## Reading the results
+
+| Status | Meaning |
+|---|---|
+| `PASS` | the check holds and the view did its work (2xx/3xx) |
+| `PART` (partial) | no crash, but the route answered 4xx to the generated request: the view rejected it before doing its work, so it is **not really tested** |
+| `FAIL` | a check or one of your asserts failed |
+| `ERROR` | your test or setup raised an exception other than `AssertionError` |
+| `WARN` | slower than `--slow-ms`, or your test passed on a 5xx response |
+| `SKIP` | write method skipped by `--read-only` |
+
+Each problem comes with a diagnosis:
+
+- **Hints** (`↳` in the terminal, "How to fix" in the panel) say what to do. 401/403 means: log in with `@rp.setup`. 404 on `{pk}` means: give a real id with `@rp.data`. A 400/422 hint lists the rejected fields, read from the FastAPI or DRF error body.
+- **Failed asserts show their values**: `assert res.status == 201 · res.status = 422`. Sub-expressions containing a call are not run again; only their arguments are shown.
+- **Crashes show the project frames** of the traceback, without the framework internals.
+- **Coverage** at the end counts the generated requests that really reached the view logic: `coverage: 9/10 generated requests reached the view logic (2xx/3xx)`. Turn the partial ones into real tests with the hints.
+
 ## Your own tests
 
 Create `routeprobe_tests.py` at the root of the project (`routeprobe init`), or pass `--tests FILE`.
@@ -197,7 +215,7 @@ The first argument of `@rp.test`, `@rp.data`, `rp.override` and `rp.exclude` acc
 - `res`: `status`, `json` (parsed body or `None`), `text`, `body`, `headers`, `elapsed_ms`, `error` (traceback when the view raised).
 - `ctx`: `client` (`get`, `post`, `put`, `patch`, `delete`, `request`, each accepting `query`, `json`, `data` and `headers`), `headers` (sent with every request), `store` (a dict shared between tests), `route` and `method`.
 
-A failed `assert` marks the test as failed and shows the assert line. Any other exception marks it as an error.
+A failed `assert` marks the test as failed and shows the values it compared. Any other exception marks it as an error.
 
 Order of execution: setup, your tests and scenarios, then the generated probes (GET first, DELETE last), then teardown.
 

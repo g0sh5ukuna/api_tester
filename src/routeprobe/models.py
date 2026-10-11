@@ -49,6 +49,10 @@ class Route:
     def query_params(self) -> list[Param]:
         return [p for p in self.params if p.location == "query"]
 
+    def method_body_unknown(self, method: str) -> bool:
+        """True when routeprobe could not know the body: Flask, or a Django view without serializer."""
+        return method not in self.body_schemas and self.framework != "fastapi"
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "path": self.path,
@@ -120,6 +124,9 @@ class Response:
 
 
 PASS, FAIL, ERROR, SKIP, WARN = "pass", "fail", "error", "skip", "warn"
+# The route answered 4xx to the generated request: nothing crashed, but the view logic did not run.
+PARTIAL = "partial"
+STATUSES = (PASS, PARTIAL, FAIL, ERROR, WARN, SKIP)
 
 
 @dataclass
@@ -135,6 +142,7 @@ class Result:
     message: str = ""
     detail: str = ""  # traceback or long explanation
     check: str = ""  # generated check that produced the result: server_error, slow...
+    hint: str = ""  # how to fix it, or why it happened
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -142,6 +150,7 @@ class Result:
             "status": self.status,
             "kind": self.kind,
             "check": self.check,
+            "hint": self.hint,
             "route": self.route.to_dict() if self.route else None,
             "request": self.request.to_dict() if self.request else None,
             "response": self.response.to_dict() if self.response else None,

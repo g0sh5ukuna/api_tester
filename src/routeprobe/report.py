@@ -5,10 +5,17 @@ import os
 import sys
 from collections import Counter
 
-from .models import ERROR, FAIL, PASS, SKIP, WARN, Result, Route
+from .models import ERROR, FAIL, PARTIAL, PASS, SKIP, STATUSES, WARN, Result, Route
 
-_COLORS = {PASS: "32", FAIL: "31", ERROR: "35", SKIP: "90", WARN: "33"}
-_METHOD_WIDTH = 7
+_COLORS = {PASS: "32", PARTIAL: "36", FAIL: "31", ERROR: "35", SKIP: "90", WARN: "33"}
+_TAGS = {PASS: "PASS", PARTIAL: "PART", FAIL: "FAIL", ERROR: "ERROR", SKIP: "SKIP", WARN: "WARN"}
+_LABELS = {PASS: "passed", PARTIAL: "partial", FAIL: "failed", ERROR: "errors", WARN: "warnings", SKIP: "skipped"}
+
+
+def coverage(results: list[Result]) -> dict[str, int]:
+    """How many generated requests reached the view logic (2xx/3xx) out of those sent."""
+    main = [r for r in results if r.kind == "auto" and r.check in ("server_error", "slow") and r.response]
+    return {"exercised": sum(r.response.status < 400 for r in main), "sent": len(main)}
 
 
 def _use_color(stream) -> bool:
@@ -32,7 +39,7 @@ class ConsoleReporter:
         self.write()
 
     def result(self, result: Result) -> None:
-        tag = self._paint(f"{result.status.upper():<5}", _COLORS[result.status])
+        tag = self._paint(f"{_TAGS[result.status]:<5}", _COLORS[result.status])
         status = f"{result.response.status}" if result.response else "   "
         elapsed = f"{result.response.elapsed_ms:7.1f} ms" if result.response else " " * 10
         kind = "" if result.kind == "auto" else self._paint("custom ", "36")
@@ -41,6 +48,8 @@ class ConsoleReporter:
         if result.message and result.status != PASS:
             line += "  " + result.message
         self.write(line)
+        if result.hint and result.status != PASS:
+            self.write(self._paint(f"        ↳ {result.hint}", "2"))
         if self.verbose and result.detail and result.status in (FAIL, ERROR):
             self.write(self._indent(result.detail))
 
@@ -66,16 +75,20 @@ class ConsoleReporter:
                     self.write(f"    response: {result.response.status} {result.response.text[:300]}")
                 if result.message:
                     self.write(f"    {result.message}")
+                if result.hint:
+                    self.write(f"    hint: {result.hint}")
                 if result.detail:
                     self.write(self._indent(_tail(result.detail, 12)))
         counts = Counter(r.status for r in results)
-        parts = [
-            self._paint(f"{counts[s]} {label}", _COLORS[s])
-            for s, label in ((PASS, "passed"), (FAIL, "failed"), (ERROR, "errors"), (WARN, "warnings"), (SKIP, "skipped"))
-            if counts[s]
-        ]
+        parts = [self._paint(f"{counts[s]} {_LABELS[s]}", _COLORS[s]) for s in STATUSES if counts[s]]
         self.write()
         self.write(" · ".join(parts or ["no probe"]) + f"  ({seconds:.2f} s)")
+        cover = coverage(results)
+        if cover["sent"]:
+            line = f"coverage: {cover['exercised']}/{cover['sent']} generated requests reached the view logic (2xx/3xx)"
+            if counts[PARTIAL]:
+                line += f"; {counts[PARTIAL]} partial, see the hints (↳) to test them for real"
+            self.write(line)
 
     def _indent(self, text: str) -> str:
         return "\n".join("      " + line for line in text.rstrip().splitlines())
@@ -92,7 +105,8 @@ def write_json(path: str, framework: str, label: str, routes: list[Route], resul
         "framework": framework,
         "app": label,
         "duration_s": round(seconds, 3),
-        "summary": {s: counts[s] for s in (PASS, FAIL, ERROR, WARN, SKIP)},
+        "summary": {s: counts[s] for s in STATUSES},
+        "coverage": coverage(results),
         "routes": [r.to_dict() for r in routes],
         "results": [r.to_dict() for r in results],
     }

@@ -9,7 +9,8 @@ from typing import Any, Callable
 from urllib.parse import quote
 
 from .adapters.base import Adapter
-from .models import ERROR, FAIL, METHOD_ORDER, PASS, SKIP, WARN, WRITE_METHODS, Request, Response, Result, Route
+from .diagnose import explain_assert, field_errors, hint
+from .models import ERROR, FAIL, METHOD_ORDER, PARTIAL, PASS, SKIP, WARN, WRITE_METHODS, Request, Response, Result, Route
 from .registry import CustomTest, Registry, Target
 from .schema import has_required_fields, sample, sample_param
 
@@ -196,6 +197,14 @@ class Runner:
         if "slow" in checks and response.elapsed_ms > self.options.slow_ms:
             message = f"slow: {response.elapsed_ms:.0f} ms (limit {self.options.slow_ms:.0f} ms)"
             return Result(label, WARN, "auto", route, request, response, message, check="slow")
+        if "server_error" in checks and 400 <= response.status < 500:
+            # No crash, but a 4xx means the view rejected the generated data before doing its work.
+            message = f"answered {response.status}: no crash, but the view logic was not exercised"
+            errors = field_errors(response) if response.status in (400, 422) else []
+            if errors:
+                message += f" ({'; '.join(errors[:3])})"
+            return Result(label, PARTIAL, "auto", route, request, response, message, check="server_error",
+                          hint=hint(route, request, response))
         return Result(label, PASS, "auto", route, request, response, check="server_error" if "server_error" in checks else "slow")
 
     def _check_invalid_body(self, route: Route, valid: Request) -> Result:
@@ -205,7 +214,11 @@ class Runner:
         if response.status >= 500:
             return Result(label, FAIL, "auto", route, request, response, "crashes on an invalid body: " + _server_error_message(response), response.error or "", "invalid_body")
         if response.status < 400:
-            return Result(label, FAIL, "auto", route, request, response, f"accepted an empty body ({response.status}) although fields are required", check="invalid_body")
+            required = route.body_schemas[valid.method].get("required", [])
+            return Result(label, FAIL, "auto", route, request, response,
+                          f"accepted an empty body ({response.status}) although fields are required",
+                          check="invalid_body",
+                          hint=f"validate the body before using it: required fields {', '.join(required)}")
         return Result(label, PASS, "auto", route, request, response, check="invalid_body")
 
     def _check_method_not_allowed(self, route: Route) -> Result | None:
@@ -221,7 +234,9 @@ class Runner:
         if response.status >= 500:
             return Result(label, FAIL, "auto", route, request, response, _server_error_message(response), response.error or "", "method_not_allowed")
         if response.status < 400:
-            return Result(label, FAIL, "auto", route, request, response, f"{method} is not declared but returned {response.status}", check="method_not_allowed")
+            return Result(label, FAIL, "auto", route, request, response,
+                          f"{method} is not declared but returned {response.status}", check="method_not_allowed",
+                          hint=f"restrict the view to {', '.join(route.methods)} (methods=[...], http_method_names, @require_http_methods)")
         return Result(label, PASS, "auto", route, request, response, check="method_not_allowed")
 
     def _run_custom(self, test: CustomTest):
@@ -245,6 +260,8 @@ class Runner:
             error = _call(test.fn, response, self.ctx)
             result = _custom_result(label, error)
             result.route, result.request, result.response = route, request, response
+            if result.status in (FAIL, ERROR) and 400 <= response.status < 500:
+                result.hint = hint(route, request, response)
             if result.status == PASS and response.status >= 500:
                 result.message = f"passed, but the response is {response.status}"
                 result.status = WARN
@@ -267,7 +284,11 @@ def _call(fn: Callable, *args) -> tuple[str, str, bool] | None:
     try:
         fn(*args)
     except AssertionError as exc:
-        return (str(exc) or _failed_assert_line(exc) or "assertion failed", traceback.format_exc(), True)
+        explained = explain_assert(exc) or _failed_assert_line(exc) or "assertion failed"
+        given = str(exc)
+        if given:
+            explained += " — " + (given if len(given) <= 300 else given[:299] + "…")
+        return (explained, traceback.format_exc(), True)
     except Exception as exc:
         return (f"{type(exc).__name__}: {exc}", traceback.format_exc(), False)
     return None

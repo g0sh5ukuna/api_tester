@@ -49,6 +49,11 @@ def test_flask_factory(tmp_path):
     found = statuses(report)
     assert code == 1
     assert found["PUT /users/{user_id}"] == "fail"
+    # Flask has no body schema: POST /users answers 400, which must not count as a real pass.
+    post = next(r for r in report["results"] if r["name"] == "POST /users")
+    assert post["status"] == "partial"
+    assert '@rp.data("POST /users")' in post["hint"]
+    assert report["coverage"] == {"exercised": 3, "sent": 5}
     assert "KeyError" in next(r for r in report["results"] if r["name"] == "PUT /users/{user_id}")["message"]
     routes = {r["path"]: r for r in report["routes"]}
     assert routes["/users/{user_id}"]["handlers"]["PUT"].endswith("UserView.put")
@@ -75,6 +80,9 @@ def test_django_uses_test_database(tmp_path):
     found = statuses(report)
     assert code == 1
     assert found["POST /api/report/{year}/ · empty body"] == "fail"
+    # No product exists yet when GET runs: 404, reported as partial with a hint.
+    detail = next(r for r in report["results"] if r["name"] == "GET /api/products/{pk}/")
+    assert detail["status"] == "partial" and "(pk=1)" in detail["hint"]
     # The product created by POST is updated then deleted: the test database works.
     assert found["PUT /api/products/{pk}/"] == "pass"
     routes = {r["path"]: r for r in report["routes"]}

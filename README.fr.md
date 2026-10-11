@@ -112,6 +112,24 @@ D'où proviennent les méthodes et les corps :
 - **Django** : modèles `path()` et `re_path()`, incluant `include()` et les routers DRF. Méthodes issues des vues de classe, des `ViewSet` DRF, de `@api_view` et `@require_http_methods` ; corps JSON issus du `serializer_class` DRF. Une vue fonctionnelle plain sans décodeur de méthode est supposée gérer GET.
 - **Flask** : règles, convertisseurs (`<int:id>`, `<uuid:...>`, `<any(a,b):...>`) et `MethodView`. Flask n'a aucun schéma de corps : fournissez des corps réels avec `@rp.data`.
 
+## Lire les résultats
+
+| Statut | Signification |
+|---|---|
+| `PASS` | la vérification tient et la vue a fait son travail (2xx/3xx) |
+| `PART` (partial) | pas de crash, mais la route a répondu 4xx à la requête générée : la vue l'a refusée avant de travailler, elle n'est donc **pas vraiment testée** |
+| `FAIL` | une vérification ou un de vos `assert` a échoué |
+| `ERROR` | votre test ou votre setup a levé une autre exception qu'`AssertionError` |
+| `WARN` | plus lent que `--slow-ms`, ou votre test est passé sur une réponse 5xx |
+| `SKIP` | méthode d'écriture ignorée par `--read-only` |
+
+Chaque problème vient avec un diagnostic :
+
+- **Les indices** (`↳` dans le terminal, « How to fix » dans le panneau) disent quoi faire. 401/403 : connectez-vous avec `@rp.setup`. 404 sur `{pk}` : donnez un vrai id avec `@rp.data`. Pour un 400/422, l'indice liste les champs refusés, lus dans le corps d'erreur de FastAPI ou de DRF.
+- **Les `assert` en échec montrent leurs valeurs** : `assert res.status == 201 · res.status = 422`. Les sous-expressions qui contiennent un appel ne sont pas réexécutées ; seuls leurs arguments sont affichés.
+- **Les crashs montrent les lignes de votre projet** dans le traceback, sans les couches internes du framework.
+- **La couverture**, en fin de rapport, compte les requêtes générées qui ont vraiment atteint la logique de la vue : `coverage: 9/10 generated requests reached the view logic (2xx/3xx)`. Transformez les partielles en vrais tests grâce aux indices.
+
 ## Vos propres tests
 
 Créez `routeprobe_tests.py` à la racine du projet (`routeprobe init`), ou passez `--tests FILE`.
@@ -195,7 +213,7 @@ Le premier argument de `@rp.test`, `@rp.data`, `rp.override` et `rp.exclude` acc
 - `res` : `status`, `json` (corps parsed ou `None`), `text`, `body`, `headers`, `elapsed_ms`, `error` (traceback quand la vue a levé).
 - `ctx` : `client` (`get`, `post`, `put`, `patch`, `delete`, `request`, chacune acceptant `query`, `json`, `data` et `headers`), `headers` (envoyés avec chaque requête), `store` (un dictionnaire partagé entre tests), `route` et `method`.
 
-L'échec d'un `assert` marque le test comme échoué et montre la ligne d'assertion. Toute autre exception le marque comme erreur.
+L'échec d'un `assert` marque le test comme échoué et montre les valeurs comparées. Toute autre exception le marque comme erreur.
 
 Ordre d'exécution : setup, vos tests et scenarios, puis les probes générés (GET en premier, DELETE en dernier), puis teardown.
 

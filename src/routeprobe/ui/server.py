@@ -19,6 +19,7 @@ from typing import Any
 from ..adapters import load_adapter
 from ..models import Request
 from ..registry import Registry, load_tests
+from ..report import coverage
 from ..runner import Options, Runner
 
 LOOPBACK = {"127.0.0.1", "localhost", "::1"}
@@ -87,6 +88,7 @@ class Panel:
         return {
             "results": [r.to_dict() for r in results],
             "summary": dict(counts),
+            "coverage": coverage(results),
             "seconds": round(time.perf_counter() - started, 3),
             "load_error": self.load_error,
         }
