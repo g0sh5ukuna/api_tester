@@ -1,5 +1,7 @@
 # routeprobe
 
+**English** · [Français](README.fr.md)
+
 Test every route of a **Django (DRF)**, **Flask** or **FastAPI** API while you develop, without writing a test first.
 
 routeprobe loads your application in-process, discovers its routes and the HTTP methods each view declares, builds a plausible request for each one (from the OpenAPI schema, the DRF serializer or the URL converters) and checks that nothing crashes. You add your own test logic, bound to a route or to a view, in a plain Python file.
