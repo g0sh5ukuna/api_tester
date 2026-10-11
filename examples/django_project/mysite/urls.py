@@ -13,4 +13,5 @@ urlpatterns = [
     path("api/ping/", views.ping),
     path("api/report/<int:year>/", views.ReportView.as_view()),
     path("legacy/", views.legacy),
+    path("account/", views.account),
 ]

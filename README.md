@@ -127,7 +127,7 @@ Where the methods and bodies come from:
 
 Each problem comes with a diagnosis:
 
-- **Hints** (`↳` in the terminal, "How to fix" in the panel) say what to do. 401/403 means: log in with `@rp.setup`. 404 on `{pk}` means: give a real id with `@rp.data`. A 400/422 hint lists the rejected fields, read from the FastAPI or DRF error body.
+- **Hints** (`↳` in the terminal, "How to fix" in the panel) say what to do. 401/403, or a redirect to the login page (`@login_required`), means: log in with `@rp.setup`. Such a redirect is partial, never a failure: the view did not run. 404 on `{pk}` means: give a real id with `@rp.data`. A 400/422 hint lists the rejected fields, read from the FastAPI or DRF error body.
 - **Failed asserts show their values**: `assert res.status == 201 · res.status = 422`. Sub-expressions containing a call are not run again; only their arguments are shown.
 - **Crashes show the project frames** of the traceback, without the framework internals.
 - **Coverage** at the end counts the generated requests that really reached the view logic: `coverage: 9/10 generated requests reached the view logic (2xx/3xx)`. Turn the partial ones into real tests with the hints.

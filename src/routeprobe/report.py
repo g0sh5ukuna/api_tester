@@ -15,7 +15,8 @@ _LABELS = {PASS: "passed", PARTIAL: "partial", FAIL: "failed", ERROR: "errors", 
 def coverage(results: list[Result]) -> dict[str, int]:
     """How many generated requests reached the view logic (2xx/3xx) out of those sent."""
     main = [r for r in results if r.kind == "auto" and r.check in ("server_error", "slow") and r.response]
-    return {"exercised": sum(r.response.status < 400 for r in main), "sent": len(main)}
+    exercised = sum(r.status != PARTIAL and r.response.status < 400 for r in main)
+    return {"exercised": exercised, "sent": len(main)}
 
 
 def _use_color(stream) -> bool:

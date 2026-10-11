@@ -9,7 +9,7 @@ from typing import Any, Callable
 from urllib.parse import quote
 
 from .adapters.base import Adapter
-from .diagnose import explain_assert, field_errors, hint
+from .diagnose import LOGIN_HINT, explain_assert, field_errors, hint, is_login_redirect
 from .models import ERROR, FAIL, METHOD_ORDER, PARTIAL, PASS, SKIP, WARN, WRITE_METHODS, Request, Response, Result, Route
 from .registry import CustomTest, Registry, Target
 from .schema import has_required_fields, sample, sample_param
@@ -197,6 +197,9 @@ class Runner:
         if "slow" in checks and response.elapsed_ms > self.options.slow_ms:
             message = f"slow: {response.elapsed_ms:.0f} ms (limit {self.options.slow_ms:.0f} ms)"
             return Result(label, WARN, "auto", route, request, response, message, check="slow")
+        if "server_error" in checks and is_login_redirect(response):
+            message = f"answered {response.status} to the login page: the view logic was not exercised"
+            return Result(label, PARTIAL, "auto", route, request, response, message, check="server_error", hint=LOGIN_HINT)
         if "server_error" in checks and 400 <= response.status < 500:
             # No crash, but a 4xx means the view rejected the generated data before doing its work.
             message = f"answered {response.status}: no crash, but the view logic was not exercised"
@@ -233,6 +236,10 @@ class Runner:
         label = f"{method} {route.path} · undeclared method"
         if response.status >= 500:
             return Result(label, FAIL, "auto", route, request, response, _server_error_message(response), response.error or "", "method_not_allowed")
+        if is_login_redirect(response):
+            # @login_required runs before the method check: refused or not, it cannot be told yet.
+            message = f"redirected to the login page before the method check: cannot tell whether {method} is refused"
+            return Result(label, PARTIAL, "auto", route, request, response, message, check="method_not_allowed", hint=LOGIN_HINT)
         if response.status < 400:
             return Result(label, FAIL, "auto", route, request, response,
                           f"{method} is not declared but returned {response.status}", check="method_not_allowed",

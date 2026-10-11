@@ -83,6 +83,10 @@ def test_django_uses_test_database(tmp_path):
     # No product exists yet when GET runs: 404, reported as partial with a hint.
     detail = next(r for r in report["results"] if r["name"] == "GET /api/products/{pk}/")
     assert detail["status"] == "partial" and "(pk=1)" in detail["hint"]
+    # @login_required redirects before the method check: neither a pass nor a failure.
+    for name in ("GET /account/", "PATCH /account/ · undeclared method"):
+        result = next(r for r in report["results"] if r["name"] == name)
+        assert result["status"] == "partial" and "login" in result["hint"], result
     # The product created by POST is updated then deleted: the test database works.
     assert found["PUT /api/products/{pk}/"] == "pass"
     routes = {r["path"]: r for r in report["routes"]}

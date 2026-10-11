@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import inspect
+import re
 import textwrap
 from typing import Any
 
@@ -110,6 +111,19 @@ def _short_repr(value: Any) -> str:
 
 # -- rejected requests ----------------------------------------------------------------
 
+_LOGIN_URL = re.compile(r"log-?in|sign-?in|/accounts/|/auth/|connexion", re.IGNORECASE)
+LOGIN_HINT = ("redirected to the login page: create a user and log in once in @rp.setup "
+              "(post to the login URL with ctx.client; the session cookie is kept)")
+
+
+def is_login_redirect(response: Response) -> bool:
+    """3xx towards a login page (@login_required, LoginRequiredMixin...): the view did not run."""
+    if not 300 <= response.status < 400:
+        return False
+    location = next((v for k, v in response.headers.items() if k.lower() == "location"), "")
+    return bool(_LOGIN_URL.search(location))
+
+
 def field_errors(response: Response) -> list[str]:
     """Validation errors from a FastAPI (422) or DRF (400) body: ["price: must be > 0", ...]."""
     body = response.json
@@ -140,6 +154,8 @@ def hint(route: Route | None, request: Request | None, response: Response | None
         return ""
     status = response.status
     target = f'"{request.method} {route.path}"'
+    if is_login_redirect(response):
+        return LOGIN_HINT
     if status in (401, 403):
         return ("authentication or permission required: log in once with @rp.setup "
                 "and set ctx.headers (Authorization, cookie...)")

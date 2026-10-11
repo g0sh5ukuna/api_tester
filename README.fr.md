@@ -125,7 +125,7 @@ D'où proviennent les méthodes et les corps :
 
 Chaque problème vient avec un diagnostic :
 
-- **Les indices** (`↳` dans le terminal, « How to fix » dans le panneau) disent quoi faire. 401/403 : connectez-vous avec `@rp.setup`. 404 sur `{pk}` : donnez un vrai id avec `@rp.data`. Pour un 400/422, l'indice liste les champs refusés, lus dans le corps d'erreur de FastAPI ou de DRF.
+- **Les indices** (`↳` dans le terminal, « How to fix » dans le panneau) disent quoi faire. 401/403, ou une redirection vers la page de connexion (`@login_required`) : connectez-vous avec `@rp.setup`. Une telle redirection est partielle, jamais un échec : la vue n'a pas tourné. 404 sur `{pk}` : donnez un vrai id avec `@rp.data`. Pour un 400/422, l'indice liste les champs refusés, lus dans le corps d'erreur de FastAPI ou de DRF.
 - **Les `assert` en échec montrent leurs valeurs** : `assert res.status == 201 · res.status = 422`. Les sous-expressions qui contiennent un appel ne sont pas réexécutées ; seuls leurs arguments sont affichés.
 - **Les crashs montrent les lignes de votre projet** dans le traceback, sans les couches internes du framework.
 - **La couverture**, en fin de rapport, compte les requêtes générées qui ont vraiment atteint la logique de la vue : `coverage: 9/10 generated requests reached the view logic (2xx/3xx)`. Transformez les partielles en vrais tests grâce aux indices.

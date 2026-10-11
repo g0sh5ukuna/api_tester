@@ -1,5 +1,6 @@
 """Example DRF views. Bug on purpose: ReportView.post crashes on an empty body."""
 
+from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 from rest_framework import serializers, viewsets
@@ -44,3 +45,9 @@ class ReportView(APIView):
 @require_GET
 def legacy(request):
     return JsonResponse({"legacy": True})
+
+
+@login_required
+@require_GET
+def account(request):
+    return JsonResponse({"user": request.user.username})
